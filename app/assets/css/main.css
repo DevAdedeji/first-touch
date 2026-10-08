@@ -92,12 +92,28 @@ a {
   letter-spacing: 0;
 }
 .nav-active,
+.nav-choice,
 .nav-link {
   font-size: 13px;
   font-weight: 650;
   display: flex;
   align-items: center;
   gap: 13px;
+}
+.nav-choice {
+  height: 100px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #778073;
+}
+.nav-choice:not(:disabled):hover {
+  color: #24372c;
+}
+.nav-choice:disabled {
+  opacity: 1;
+  cursor: default;
 }
 .nav-link {
   color: #778073;
@@ -972,7 +988,9 @@ footer {
   .joystick {
     background: #071b2b90;
     border: 1px solid #ffffff85;
-    box-shadow: inset 0 0 0 7px #ffffff0b, 0 5px 24px #071b2b55;
+    box-shadow:
+      inset 0 0 0 7px #ffffff0b,
+      0 5px 24px #071b2b55;
     backdrop-filter: blur(4px);
   }
   .touch-actions button {
@@ -1093,6 +1111,10 @@ footer {
     gap: 18px;
   }
   .nav-active {
+    height: 77px;
+    font-size: 11px;
+  }
+  .nav-choice {
     height: 77px;
     font-size: 11px;
   }
@@ -1317,6 +1339,21 @@ footer {
   }
   .mobile-break {
     display: block;
+  }
+}
+@media (max-width: 620px) {
+  .site-header {
+    gap: 10px;
+  }
+  .site-header nav {
+    gap: 10px;
+  }
+  .site-header .header-meta {
+    display: none;
+  }
+  .site-header .nav-choice {
+    gap: 6px;
+    font-size: 10px;
   }
 }
 .controller-note {

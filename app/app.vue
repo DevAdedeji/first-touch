@@ -2,6 +2,20 @@
 import type { SoundPreview } from './game/audio'
 import type FootballGame from './components/FootballGame.vue'
 import type { MatchOptions, Phase } from './game/simulation'
+import LeaguePanel from './components/LeaguePanel.vue'
+import {
+  clubById,
+  completeMatchday,
+  createSeason,
+  currentLeagueFixtures,
+  leagueStandings,
+  loadSeason,
+  nextUserFixture,
+  saveSeason,
+  USER_CLUB_ID,
+  type Fixture,
+  type LeagueSeason,
+} from './game/league'
 const game = ref<InstanceType<typeof FootballGame>>()
 const loaded = ref(false),
   error = ref(''),
@@ -13,6 +27,9 @@ const soundPreview = ref<SoundPreview>('whistle')
 const pwa = useNuxtApp().$pwa
 const iosInstallHelp = ref(false)
 const options = reactive<MatchOptions>({ duration: 180, difficulty: 'club' })
+const competition = ref<'exhibition' | 'league'>('exhibition')
+const leagueSeason = ref<LeagueSeason | null>(null)
+const playedFixture = ref<Fixture | null>(null)
 const state = ref<{
   audioStatus: string
   audioLevel: number
@@ -65,6 +82,43 @@ const state = ref<{
   players: [],
 })
 const active = computed(() => state.value.phase !== 'ready')
+const leagueComplete = computed(() => (leagueSeason.value?.currentMatchday ?? 1) > 38)
+const leagueMatchday = computed(() => Math.min(leagueSeason.value?.currentMatchday ?? 1, 38))
+const leagueTable = computed(() => (leagueSeason.value ? leagueStandings(leagueSeason.value) : []))
+const leagueFixtures = computed(() =>
+  leagueSeason.value
+    ? currentLeagueFixtures({ ...leagueSeason.value, currentMatchday: leagueMatchday.value })
+    : [],
+)
+const fixture = computed(() => {
+  if (competition.value === 'exhibition')
+    return {
+      matchday: 0,
+      home: { name: 'Northside FC', shortName: 'NOR' },
+      away: { name: 'East End', shortName: 'EAS' },
+    }
+  const current =
+    playedFixture.value ??
+    (leagueSeason.value
+      ? (nextUserFixture(leagueSeason.value) ??
+        [...leagueSeason.value.fixtures]
+          .reverse()
+          .find(
+            (candidate) => candidate.home === USER_CLUB_ID || candidate.away === USER_CLUB_ID,
+          ) ??
+        null)
+      : null)
+  if (!current) return null
+  return {
+    matchday: current.matchday,
+    home: clubById(current.home),
+    away: clubById(current.away),
+  }
+})
+const northsideIsHome = computed(() => fixture.value?.home.shortName === 'NOR')
+const displayScore = computed(() =>
+  northsideIsHome.value ? state.value.score : [...state.value.score].reverse(),
+)
 const updateSafe = computed(() => ['ready', 'finished'].includes(state.value.phase))
 const clock = computed(() => {
   const m = Math.floor(state.value.time)
@@ -127,8 +181,15 @@ onMounted(() => {
   try {
     const saved = localStorage.getItem('first-touch-difficulty')
     if (saved === 'casual' || saved === 'club' || saved === 'pro') options.difficulty = saved
+    if (localStorage.getItem('first-touch-competition') === 'league') competition.value = 'league'
+    leagueSeason.value = loadSeason(localStorage)
+    if (!leagueSeason.value) {
+      leagueSeason.value = createSeason()
+      saveSeason(localStorage, leagueSeason.value)
+    }
   } catch {
-    /* Storage can be disabled by the browser. */
+    leagueSeason.value ??= createSeason()
+    /* The season remains playable for this visit when browser storage is disabled. */
   }
 })
 watch(
@@ -142,8 +203,65 @@ watch(
   },
 )
 function start() {
+  if (competition.value === 'league') {
+    if (!leagueSeason.value || leagueComplete.value) return
+    playedFixture.value = nextUserFixture(leagueSeason.value)
+    if (!playedFixture.value) return
+  } else {
+    playedFixture.value = null
+  }
   game.value?.start()
 }
+function selectCompetition(value: 'exhibition' | 'league') {
+  if (active.value) return
+  competition.value = value
+  playedFixture.value = null
+  if (value === 'league' && !leagueSeason.value) leagueSeason.value = createSeason()
+  try {
+    localStorage.setItem('first-touch-competition', value)
+  } catch {
+    /* The selected mode still applies for this visit. */
+  }
+}
+function startNewSeason() {
+  leagueSeason.value = createSeason()
+  playedFixture.value = null
+  try {
+    saveSeason(localStorage, leagueSeason.value)
+  } catch {
+    /* Keep the new season in memory when storage is disabled. */
+  }
+}
+function resetGame() {
+  playedFixture.value = null
+  game.value?.reset()
+}
+function continueAfterMatch() {
+  if (competition.value === 'league' && leagueComplete.value) resetGame()
+  else start()
+}
+watch(
+  () => state.value.phase,
+  (phase, previous) => {
+    if (
+      phase !== 'finished' ||
+      previous === 'finished' ||
+      competition.value !== 'league' ||
+      !leagueSeason.value ||
+      !playedFixture.value
+    )
+      return
+    leagueSeason.value = completeMatchday(leagueSeason.value, playedFixture.value.matchday, [
+      state.value.score[0]!,
+      state.value.score[1]!,
+    ])
+    try {
+      saveSeason(localStorage, leagueSeason.value)
+    } catch {
+      state.value.message = 'League result saved for this visit only.'
+    }
+  },
+)
 </script>
 
 <template>
@@ -154,8 +272,23 @@ function start() {
         ><span>first touch<span class="brand-dot">®</span></span></a
       >
       <nav class="flex items-center gap-8" aria-label="Main navigation">
-        <span class="nav-active">Exhibition <span class="tiny-dot" /></span
-        ><button class="nav-link" @click="showHelp">How to play <span>↗</span></button>
+        <button
+          class="nav-choice"
+          :class="{ 'nav-active': competition === 'exhibition' }"
+          :disabled="active"
+          @click="selectCompetition('exhibition')"
+        >
+          Exhibition <span v-if="competition === 'exhibition'" class="tiny-dot" />
+        </button>
+        <button
+          class="nav-choice"
+          :class="{ 'nav-active': competition === 'league' }"
+          :disabled="active"
+          @click="selectCompetition('league')"
+        >
+          League <span v-if="competition === 'league'" class="tiny-dot" />
+        </button>
+        <button class="nav-link" @click="showHelp">How to play <span>↗</span></button>
       </nav>
       <div class="header-meta">
         <span class="live-dot" />
@@ -178,21 +311,45 @@ function start() {
       <section class="match-shell" :class="{ 'match-active': active }">
         <aside v-if="!active" class="setup-panel">
           <div class="section-label">
-            <span>01 / KICK OFF</span><span class="outline-tag">EXHIBITION</span>
+            <span>{{ competition === 'league' ? '01 / THE SEASON' : '01 / KICK OFF' }}</span
+            ><span class="outline-tag">{{
+              competition === 'league' ? 'LEAGUE' : 'EXHIBITION'
+            }}</span>
           </div>
-          <h2>A fresh match.<br />A clean slate.</h2>
+          <h2 v-if="competition === 'league'">
+            {{
+              leagueComplete
+                ? 'Season complete.'
+                : `Matchday ${leagueSeason?.currentMatchday ?? 1}.`
+            }}<br />
+            {{ leagueComplete ? 'A new beginning.' : 'Every point matters.' }}
+          </h2>
+          <h2 v-else>A fresh match.<br />A clean slate.</h2>
           <p class="subtle setup-description">
-            Pick your pace. Find your rhythm.<br />Let the football do the talking.
+            <template v-if="competition === 'league'">
+              20 clubs. Home and away.<br />38 matchdays to become champions.
+            </template>
+            <template v-else>
+              Pick your pace. Find your rhythm.<br />Let the football do the talking.
+            </template>
           </p>
           <div class="fixture">
             <div class="team">
-              <div class="crest home-crest"><span>N</span><small>F C</small></div>
-              <strong>Northside</strong><span class="team-label">YOU · HOME</span>
+              <div class="crest home-crest">
+                <span>{{ fixture?.home.name[0] ?? 'N' }}</span
+                ><small>F C</small>
+              </div>
+              <strong>{{ fixture?.home.name ?? 'Northside FC' }}</strong
+              ><span class="team-label">{{ northsideIsHome ? 'YOU · HOME' : 'CPU · HOME' }}</span>
             </div>
             <span class="versus">vs</span>
             <div class="team">
-              <div class="crest away-crest"><span>E</span><small>F C</small></div>
-              <strong>East End</strong><span class="team-label">CPU · AWAY</span>
+              <div class="crest away-crest">
+                <span>{{ fixture?.away.name[0] ?? 'E' }}</span
+                ><small>F C</small>
+              </div>
+              <strong>{{ fixture?.away.name ?? 'East End' }}</strong
+              ><span class="team-label">{{ northsideIsHome ? 'CPU · AWAY' : 'YOU · AWAY' }}</span>
             </div>
           </div>
           <div class="setup-fields">
@@ -222,26 +379,58 @@ function start() {
                   : 'Balanced pressure, decision speed, and goalkeeping.'
             }}
           </p>
-          <button class="primary-button" :disabled="!loaded || !!error" @click="start">
+          <button
+            class="primary-button"
+            :disabled="!loaded || !!error || (competition === 'league' && leagueComplete)"
+            @click="start"
+          >
             <span>{{
-              error ? 'Stadium unavailable' : loaded ? 'Let’s play' : 'Preparing the pitch…'
+              error
+                ? 'Stadium unavailable'
+                : loaded
+                  ? competition === 'league'
+                    ? `Play Matchday ${leagueSeason?.currentMatchday ?? 1}`
+                    : 'Let’s play'
+                  : 'Preparing the pitch…'
             }}</span
             ><span>↗</span>
           </button>
           <div class="setup-extras">
-            <button class="secondary-button" :disabled="!loaded" @click="practiceCorner(1)">
+            <button
+              v-if="competition === 'exhibition'"
+              class="secondary-button"
+              :disabled="!loaded"
+              @click="practiceCorner(1)"
+            >
               Practice corners ↗
             </button>
-            <button class="text-button" :disabled="!loaded" @click="game?.practiceThrow()">
+            <button
+              v-if="competition === 'exhibition'"
+              class="text-button"
+              :disabled="!loaded"
+              @click="game?.practiceThrow()"
+            >
               Practice throw-ins ↗
+            </button>
+            <button
+              v-if="competition === 'league' && leagueComplete"
+              class="secondary-button"
+              :disabled="!loaded"
+              @click="startNewSeason"
+            >
+              Start a new season ↗
             </button>
             <button class="text-button" :disabled="!loaded" @click="testSound">Test sound ♪</button>
             <span class="audio-feedback" role="status">{{ state.audioStatus }}</span>
             <button v-if="pwa?.showInstallPrompt" class="text-button" @click="pwa.install()">
               Install game ↗
             </button>
-            <span v-if="iosInstallHelp" class="pwa-status">iPhone/iPad: Share → Add to Home Screen</span>
-            <span v-if="pwa?.offlineReady" class="pwa-status" role="status">Ready to play offline</span>
+            <span v-if="iosInstallHelp" class="pwa-status"
+              >iPhone/iPad: Share → Add to Home Screen</span
+            >
+            <span v-if="pwa?.offlineReady" class="pwa-status" role="status"
+              >Ready to play offline</span
+            >
           </div>
           <p
             class="controller-note"
@@ -288,11 +477,16 @@ function start() {
           </template>
           <template v-else>
             <div class="scoreboard">
-              <span class="score-team home-team">NOR</span
-              ><strong>{{ state.score[0] }}<span>:</span>{{ state.score[1] }}</strong
-              ><span class="score-team away-team">EAS</span>
+              <span class="score-team home-team">{{ fixture?.home.shortName ?? 'NOR' }}</span
+              ><strong>{{ displayScore[0] }}<span>:</span>{{ displayScore[1] }}</strong
+              ><span class="score-team away-team">{{ fixture?.away.shortName ?? 'EAS' }}</span>
               <div class="match-time">
-                {{ clock }}<small>{{ state.difficulty.toUpperCase() }}</small>
+                {{ clock
+                }}<small>{{
+                  competition === 'league'
+                    ? `MD ${fixture?.matchday}`
+                    : state.difficulty.toUpperCase()
+                }}</small>
               </div>
             </div>
             <div class="in-game-menu">
@@ -347,7 +541,7 @@ function start() {
               <button @click="practiceCorner(state.trainingCornerSide === 1 ? -1 : 1)">
                 Other side
               </button>
-              <button @click="game?.reset()">Exit practice</button>
+              <button @click="resetGame">Exit practice</button>
             </div>
             <div v-if="state.trainingThrowSide" class="practice-tools">
               <span>THROW-IN PRACTICE</span>
@@ -355,7 +549,7 @@ function start() {
               <button @click="game?.practiceThrow(state.trainingThrowSide === 1 ? -1 : 1)">
                 Other side
               </button>
-              <button @click="game?.reset()">Exit practice</button>
+              <button @click="resetGame">Exit practice</button>
             </div>
             <div
               v-if="state.setPiece"
@@ -408,8 +602,9 @@ function start() {
                   {{ state.phase === 'finished' ? 'That’s football.' : 'Your pitch is waiting.' }}
                 </h2>
                 <div class="result-score">
-                  <span>Northside</span><strong>{{ state.score[0] }} — {{ state.score[1] }}</strong
-                  ><span>East End</span>
+                  <span>{{ fixture?.home.name ?? 'Northside FC' }}</span
+                  ><strong>{{ displayScore[0] }} — {{ displayScore[1] }}</strong
+                  ><span>{{ fixture?.away.name ?? 'East End' }}</span>
                 </div>
                 <div class="stats">
                   <div>
@@ -515,17 +710,33 @@ function start() {
                 </p>
                 <button
                   class="primary-button"
-                  @click="state.phase === 'finished' ? start() : game?.pause()"
+                  @click="state.phase === 'finished' ? continueAfterMatch() : game?.pause()"
                 >
-                  {{ state.phase === 'finished' ? 'Play again' : 'Back to the game' }}
+                  {{
+                    state.phase === 'finished'
+                      ? competition === 'league'
+                        ? leagueComplete
+                          ? 'Back to league table'
+                          : `Continue · Matchday ${leagueSeason?.currentMatchday}`
+                        : 'Play again'
+                      : 'Back to the game'
+                  }}
                   <span>↗</span></button
-                ><button class="text-button" @click="game?.reset()">Back to match setup</button>
+                ><button class="text-button" @click="resetGame">Back to match setup</button>
               </div>
             </div>
           </template>
           <div v-if="!active" class="camera-label"><span>◉</span> LIVE STADIUM PREVIEW</div>
         </div>
       </section>
+
+      <LeaguePanel
+        v-if="competition === 'league' && !active && leagueSeason"
+        :standings="leagueTable"
+        :fixtures="leagueFixtures"
+        :matchday="leagueMatchday"
+        :season-complete="leagueComplete"
+      />
 
       <section class="controls-bar flex items-center justify-between">
         <div v-if="state.controllerName" class="key-guide controller-guide">
@@ -649,8 +860,14 @@ function start() {
   </div>
   <NuxtPwaManifest />
   <aside v-if="pwa?.needRefresh" class="pwa-update" role="status">
-    <span>{{ updateSafe ? 'A game update is ready.' : 'Update ready. Finish this match before refreshing.' }}</span>
-    <button v-if="updateSafe" class="secondary-button" @click="pwa.updateServiceWorker()">Update game</button>
-    <button class="text-button" aria-label="Dismiss update" @click="pwa.cancelPrompt()">Later</button>
+    <span>{{
+      updateSafe ? 'A game update is ready.' : 'Update ready. Finish this match before refreshing.'
+    }}</span>
+    <button v-if="updateSafe" class="secondary-button" @click="pwa.updateServiceWorker()">
+      Update game
+    </button>
+    <button class="text-button" aria-label="Dismiss update" @click="pwa.cancelPrompt()">
+      Later
+    </button>
   </aside>
 </template>

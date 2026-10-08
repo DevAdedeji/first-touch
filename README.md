@@ -1,6 +1,6 @@
 # First Touch
 
-An original, playable **11-a-side football exhibition** built with Nuxt 4, Three.js, Blender, and Tailwind CSS. Northside (you, blue) takes on East End (CPU, red) at The Common Ground.
+An original, playable **11-a-side football game** built with Nuxt 4, Three.js, Blender, and Tailwind CSS. Play an exhibition at The Common Ground or take Northside through a 20-club, 38-matchday league season.
 
 ## Run
 
@@ -29,9 +29,11 @@ Open the local URL printed by Nuxt. No database, account, external asset service
 
 Choose a 3-, 5-, or 8-minute match and Casual, Club, or Pro difficulty. Difficulty can also be changed in the pause menu without restarting; your last choice is remembered in this browser. The displayed 90-minute clock is compressed to that duration. Stadium sound starts at kickoff after a browser interaction; mute it in the top-right corner or adjust volume in the pause menu. Controller-only starts may require one click on the pitch to unlock browser audio.
 
+Choose **League** in the top navigation for a Premier League-style season. Each of 20 fictional clubs plays every other club home and away over 38 matchdays. Play Northside’s fixture each round while the other nine results are simulated; the standings update at full time using three points for a win, one for a draw, then goal difference and goals scored as tie-breakers. Fixtures and season progress are saved in this browser. Start a new season after the final matchday.
+
 ## Scope
 
-This is an arcade prototype: 22 players, 4-4-2 formations, team AI, goalkeepers, possession, passing, shooting, tackles, goals, throw-ins, corners, goal kicks, match statistics, and full-time/rematch. Offside, careless/late tackle fouls, free kicks, penalties, and arranged corners are included. Dead-ball setup uses a short repositioning cut. Cards, advantage, handball, substitutions, halftime side changes, online multiplayer, and saved matches are not implemented yet. No Postgres integration is needed for local exhibition play.
+This is an arcade prototype: 22 players, 4-4-2 formations, team AI, goalkeepers, possession, passing, shooting, tackles, goals, throw-ins, corners, goal kicks, match statistics, and full-time/rematch. Offside, careless/late tackle fouls, free kicks, penalties, and arranged corners are included. Dead-ball setup uses a short repositioning cut. The league tracks a local season table; it does not yet include transfers, cups, promotion/relegation, online multiplayer, or cloud saves. No Postgres integration is needed for local play.
 
 ## Controller
 
