@@ -271,23 +271,7 @@ watch(
         ><span class="brand-symbol">f<span>t</span></span
         ><span>first touch<span class="brand-dot">®</span></span></a
       >
-      <nav class="flex items-center gap-8" aria-label="Main navigation">
-        <button
-          class="nav-choice"
-          :class="{ 'nav-active': competition === 'exhibition' }"
-          :disabled="active"
-          @click="selectCompetition('exhibition')"
-        >
-          Exhibition <span v-if="competition === 'exhibition'" class="tiny-dot" />
-        </button>
-        <button
-          class="nav-choice"
-          :class="{ 'nav-active': competition === 'league' }"
-          :disabled="active"
-          @click="selectCompetition('league')"
-        >
-          League <span v-if="competition === 'league'" class="tiny-dot" />
-        </button>
+      <nav class="flex items-center" aria-label="Main navigation">
         <button class="nav-link" @click="showHelp">How to play <span>↗</span></button>
       </nav>
       <div class="header-meta">
@@ -310,6 +294,22 @@ watch(
 
       <section class="match-shell" :class="{ 'match-active': active }">
         <aside v-if="!active" class="setup-panel">
+          <div class="competition-switch" role="group" aria-label="Choose a game mode">
+            <button
+              :class="{ 'competition-selected': competition === 'exhibition' }"
+              :aria-pressed="competition === 'exhibition'"
+              @click="selectCompetition('exhibition')"
+            >
+              <span>Exhibition</span><small>One match</small>
+            </button>
+            <button
+              :class="{ 'competition-selected': competition === 'league' }"
+              :aria-pressed="competition === 'league'"
+              @click="selectCompetition('league')"
+            >
+              <span>League</span><small>Full season</small>
+            </button>
+          </div>
           <div class="section-label">
             <span>{{ competition === 'league' ? '01 / THE SEASON' : '01 / KICK OFF' }}</span
             ><span class="outline-tag">{{
@@ -742,7 +742,7 @@ watch(
         <div v-if="state.controllerName" class="key-guide controller-guide">
           <span class="control-title">CONTROLLER READY</span>
           <div><kbd>LS</kbd><span>Move</span></div>
-          <div><kbd>RT / R2</kbd><span>Sprint</span></div>
+          <div><kbd>R1 / RB · R2 / RT</kbd><span>Sprint with either</span></div>
           <div><kbd>A / ×</kbd><span>Pass</span></div>
           <div><kbd>X / □</kbd><span>Hold to shoot</span></div>
           <button class="more-controls" @click="showHelp">All controls ↗</button>
@@ -826,8 +826,8 @@ watch(
           <div><span>X / Square</span><b>Hold to shoot</b></div>
           <div><span>B / Circle</span><b>Cross in possession · tackle when defending</b></div>
           <div><span>LB / L1 · Y / Triangle</span><b>Switch when defending / ball loose</b></div>
-          <div><span>Right stick flick</span><b>Choose an attacker</b></div>
-          <div><span>RT / R2</span><b>Sprint</b></div>
+          <div><span>Right stick flick</span><b>Choose a teammate in that direction</b></div>
+          <div><span>R1 / RB · R2 / RT</span><b>Sprint · either button</b></div>
           <div><span>View / Share</span><b>Camera</b></div>
           <div><span>Start / Options</span><b>Kick off · Pause · Rematch</b></div>
           <small

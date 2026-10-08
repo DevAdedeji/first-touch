@@ -238,19 +238,45 @@ test('difficulty applies different pressing speed and reaction in the same encou
   )
 })
 
-test('defensive switching selects the outfielder nearest the opponent carrier', () => {
+test('switching selects the nearest outfield teammate first, then cycles to the next nearest', () => {
   const m = passingLane()
   const opponent = m.players[20]!
   opponent.x = 12
   opponent.z = 0
   m.owner = 20
   m.selected = 9
-  m.players[7]!.x = 10
+  for (const p of m.players.filter((player) => player.team === 0 && player.id !== 9)) {
+    p.x = -30
+    p.z = 20
+  }
+  m.players[7]!.x = 8
   m.players[7]!.z = 0
+  m.players[10]!.x = 11
+  m.players[10]!.z = 0
   m.switchPlayer()
+  assert.equal(m.selected, 10, 'a striker can be selected when nearest to the opponent')
+  m.switchPlayer()
+  assert.equal(m.selected, 7, 'the next switch selects the next nearest teammate')
+  const second = m.selected
+  m.switchPlayer()
+  assert.notEqual(m.selected, second)
+  assert.equal(m.players[m.selected]!.role === 'GK', false)
+})
+
+test('right-stick defensive switching selects a player in the flick direction', () => {
+  const m = passingLane()
+  m.owner = 20
+  const current = m.players[m.selected]!
+  for (const p of m.players.filter((player) => player.team === 0 && player.id !== current.id)) {
+    p.x = current.x + 30
+    p.z = current.z - 30
+  }
+  m.players[7]!.x = current.x
+  m.players[7]!.z = current.z + 8
+  m.players[10]!.x = current.x
+  m.players[10]!.z = current.z - 8
+  m.switchPlayer({ x: 0, z: 1 })
   assert.equal(m.selected, 7)
-  m.switchPlayer()
-  assert.equal(m.selected, 7, 'repeated switching should keep the closest defender')
 })
 
 test('holding pressure chases the opponent and attempts a tackle automatically', () => {

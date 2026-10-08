@@ -46,6 +46,11 @@ test('shooting fires on release, sprint responds to trigger, d-pad moves', () =>
   assert.ok(input.shootReleased && input.sprint)
   assert.equal(input.x, 1)
 })
+test('either R1/RB or R2/RT activates sprint', () => {
+  assert.equal(sampleController(pad([5]), []).sprint, true)
+  assert.equal(sampleController(pad([7]), []).sprint, true)
+  assert.equal(sampleController(pad(), []).sprint, false)
+})
 test('diagonal stick magnitude is capped and missing axes are safe', () => {
   const input = sampleController(pad([], [1, 1]), [])
   assert.ok(Math.hypot(input.x, input.z) <= 1.0001)
