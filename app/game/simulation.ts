@@ -319,19 +319,11 @@ export class Match {
       this.selected = directionalCandidates[0]!.id
     } else if (this.owner !== null && this.players[this.owner]!.team === 1) {
       const carrier = this.players[this.owner]!
-      const advancingTowardGoal = carrier.facingX < -0.2
-      const facingCarrier = outfield.filter((p) => {
-        const toCarrier = unit(carrier.x - p.x, carrier.z - p.z)
-        return p.facingX * toCarrier.x + p.facingZ * toCarrier.z >= 0.15
-      })
-      const goalSide = facingCarrier.filter((p) => p.x <= carrier.x + 1.5)
-      const ranked = (
-        advancingTowardGoal && goalSide.length
-          ? goalSide
-          : advancingTowardGoal && facingCarrier.length
-            ? facingCarrier
-            : outfield
-      ).sort((a, b) => distance(a, carrier) - distance(b, carrier))
+      const advancingTowardGoal = carrier.x < -15 || carrier.vx < -0.8 || carrier.facingX < -0.2
+      const goalSide = outfield.filter((p) => p.x <= carrier.x - 0.5)
+      const ranked = (advancingTowardGoal && goalSide.length ? goalSide : outfield)
+        .filter((p) => p.id !== this.selected)
+        .sort((a, b) => distance(a, carrier) - distance(b, carrier))
       const rankedIds = ranked.map((p) => p.id)
       const continueCycle =
         this.defensiveSwitchCarrier === carrier.id &&
@@ -350,6 +342,10 @@ export class Match {
       const nextIndex =
         continueCycle || currentIsBest ? (index + 1) % this.defensiveSwitchOrder.length : 0
       this.selected = this.defensiveSwitchOrder[nextIndex]!
+      const selected = this.players[this.selected]!
+      const toCarrier = unit(carrier.x - selected.x, carrier.z - selected.z)
+      selected.facingX = toCarrier.x
+      selected.facingZ = toCarrier.z
       this.defensiveSwitchCarrier = carrier.id
       this.defensiveSwitchSelection = this.selected
     } else if (
@@ -915,13 +911,15 @@ export class Match {
       if (p.action === 'throw') p.vx = p.vz = 0
       p.x = clamp(p.x + p.vx * dt, kickingAtCorner ? -52.9 : -51.5, kickingAtCorner ? 52.9 : 51.5)
       p.z = clamp(p.z + p.vz * dt, kickingAtCorner ? -34.9 : -33.5, kickingAtCorner ? 34.9 : 33.5)
-      if (p.role === 'GK' || Math.hypot(p.vx, p.vz) > 0.3) {
+      if (p.role === 'GK' || Math.hypot(p.vx, p.vz) > 0.3 || (p.team === 0 && owner?.team === 1)) {
         const facing =
           p.id === heldByKeeper?.id
             ? { x: sign, z: 0 }
             : p.role === 'GK'
               ? unit(b.x - p.x, b.z - p.z)
-              : unit(p.vx, p.vz)
+              : p.team === 0 && owner?.team === 1
+                ? unit(owner.x - p.x, owner.z - p.z)
+                : unit(p.vx, p.vz)
         p.facingX = facing.x
         p.facingZ = facing.z
       }

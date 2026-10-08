@@ -238,7 +238,7 @@ test('difficulty applies different pressing speed and reaction in the same encou
   )
 })
 
-test('defensive switching prefers goal-side teammates facing an advancing carrier', () => {
+test('defensive switching picks the nearest goal-side teammate and turns them toward the carrier', () => {
   const m = passingLane()
   const opponent = m.players[20]!
   opponent.x = -38
@@ -255,21 +255,54 @@ test('defensive switching prefers goal-side teammates facing an advancing carrie
     p.facingX = 1
     p.facingZ = 0
   }
+  Object.assign(m.players[5]!, { x: -37.4, z: 0, facingX: 1, facingZ: 0 })
   Object.assign(m.players[7]!, { x: -39, z: 0.5, facingX: -1, facingZ: 0 })
   Object.assign(m.players[8]!, { x: -40, z: 4, facingX: 0.447, facingZ: -0.894 })
   Object.assign(m.players[6]!, { x: -39, z: -6, facingX: 0.164, facingZ: 0.986 })
   Object.assign(m.players[10]!, { x: -42, z: -5, facingX: 0.625, facingZ: 0.781 })
   m.switchPlayer()
-  assert.equal(m.selected, 8, 'a teammate facing the carrier beats a closer player facing away')
+  assert.equal(
+    m.selected,
+    7,
+    'the closest goal-side teammate beats a closer player beyond the carrier',
+  )
+  assert.ok(
+    m.players[m.selected]!.facingX > 0.85,
+    'the selected defender immediately faces the carrier',
+  )
   m.switchPlayer()
-  assert.equal(m.selected, 6, 'the next press cycles through the facing defenders')
+  assert.equal(m.selected, 8, 'the next press cycles through the nearest goal-side options')
   m.switchPlayer()
-  assert.equal(m.selected, 10, 'switching continues through all eligible outfield teammates')
+  assert.equal(m.selected, 6, 'switching continues through all eligible outfield teammates')
   m.switchPlayer()
-  assert.equal(m.selected, 8, 'the switch order wraps cleanly')
+  assert.equal(m.selected, 10, 'the switch order wraps through goal-side players')
   m.selected = 10
   m.switchPlayer()
-  assert.equal(m.selected, 8, 'a less suitable selection returns to the nearest good option')
+  assert.equal(m.selected, 7, 'a less suitable selection returns to the nearest goal-side player')
+})
+
+test('defending players keep facing the opponent carrier while repositioning', () => {
+  const m = passingLane()
+  m.start()
+  m.owner = 20
+  const carrier = m.players[20]!
+  carrier.x = -34
+  carrier.z = 4
+  carrier.facingX = -1
+  for (const player of m.players.filter((p) => p.team === 0 && p.role !== 'GK')) {
+    player.vx = 0
+    player.vz = 0
+    player.facingX = 0
+    player.facingZ = 1
+  }
+  m.update(1 / 60, idle)
+  const updatedCarrier = m.players[20]!
+  for (const player of m.players.filter((p) => p.team === 0 && p.role !== 'GK')) {
+    const toCarrier = { x: updatedCarrier.x - player.x, z: updatedCarrier.z - player.z }
+    const length = Math.hypot(toCarrier.x, toCarrier.z) || 1
+    const facingDot = (player.facingX * toCarrier.x + player.facingZ * toCarrier.z) / length
+    assert.ok(facingDot > 0.98, `${player.name} should face the ball carrier`)
+  }
 })
 
 test('right-stick defensive switching selects a player in the flick direction', () => {
