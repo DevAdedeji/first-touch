@@ -1,0 +1,36 @@
+{
+  "name": "first-touch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 127.0.0.1",
+    "build": "nuxt build",
+    "preview": "nuxt preview --host 127.0.0.1",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "lint": "oxlint app tests nuxt.config.ts",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run build",
+    "generate": "nuxt generate"
+  },
+  "dependencies": {
+    "nuxt": "4.5.2",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@vite-pwa/nuxt": "^1.1.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/three": "0.186.0",
+    "oxfmt": "0.72.0",
+    "oxlint": "1.87.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vue-tsc": "3.3.12"
+  },
+  "engines": {
+    "node": ">=22.21.0"
+  }
+}

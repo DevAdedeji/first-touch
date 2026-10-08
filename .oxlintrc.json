@@ -1,0 +1,1 @@
+{ "categories": { "correctness": "error" }, "ignorePatterns": [".nuxt", ".output", "node_modules"] }
