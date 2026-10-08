@@ -248,7 +248,7 @@ test('defensive switching prefers goal-side teammates facing an advancing carrie
   m.owner = 20
   m.selected = 9
   for (const p of m.players.filter(
-    (player) => player.team === 0 && ![7, 8, 9, 10].includes(player.id),
+    (player) => player.team === 0 && ![6, 7, 8, 9, 10].includes(player.id),
   )) {
     p.x = -10
     p.z = 20
@@ -257,11 +257,16 @@ test('defensive switching prefers goal-side teammates facing an advancing carrie
   }
   Object.assign(m.players[7]!, { x: -39, z: 0.5, facingX: -1, facingZ: 0 })
   Object.assign(m.players[8]!, { x: -40, z: 4, facingX: 0.447, facingZ: -0.894 })
+  Object.assign(m.players[6]!, { x: -39, z: -6, facingX: 0.164, facingZ: 0.986 })
   Object.assign(m.players[10]!, { x: -42, z: -5, facingX: 0.625, facingZ: 0.781 })
   m.switchPlayer()
   assert.equal(m.selected, 8, 'a teammate facing the carrier beats a closer player facing away')
   m.switchPlayer()
-  assert.equal(m.selected, 10, 'the next press cycles to another suitable outfield teammate')
+  assert.equal(m.selected, 6, 'the next press cycles through the facing defenders')
+  m.switchPlayer()
+  assert.equal(m.selected, 10, 'switching continues through all eligible outfield teammates')
+  m.switchPlayer()
+  assert.equal(m.selected, 8, 'the switch order wraps cleanly')
   m.selected = 10
   m.switchPlayer()
   assert.equal(m.selected, 8, 'a less suitable selection returns to the nearest good option')

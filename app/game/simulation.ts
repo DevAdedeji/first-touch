@@ -167,6 +167,9 @@ export class Match {
   private shotTeam: Team | null = null
   private kickerId: number | null = null
   private kickLock = 0
+  private defensiveSwitchCarrier: number | null = null
+  private defensiveSwitchOrder: number[] = []
+  private defensiveSwitchSelection: number | null = null
   private aiTimer = 0
   private controlGrace = 0
   private kickoffGrace = 0
@@ -276,13 +279,20 @@ export class Match {
   distanceToBall(p: Player) {
     return distance(p, this.ball)
   }
+  private clearDefensiveSwitchCycle() {
+    this.defensiveSwitchCarrier = null
+    this.defensiveSwitchOrder = []
+    this.defensiveSwitchSelection = null
+  }
   switchPlayer(direction?: Direction) {
     if (this.phase !== 'playing') return
     if (this.owner !== null && this.players[this.owner]!.team === 0) {
+      this.clearDefensiveSwitchCycle()
       this.selected = this.owner
       return
     }
     if (this.setPiece) {
+      this.clearDefensiveSwitchCycle()
       this.selected = this.setPiece.team === 0 ? this.setPiece.taker : this.selected
       return
     }
@@ -290,6 +300,7 @@ export class Match {
     const outfield = this.players.filter((p) => p.team === 0 && p.role !== 'GK')
     const candidates = outfield.filter((p) => p.id !== this.selected)
     if (direction && Math.hypot(direction.x, direction.z) > 0.2) {
+      this.clearDefensiveSwitchCycle()
       const aim = unit(direction.x, direction.z)
       const inDirection = candidates.filter(
         (p) => (p.x - current.x) * aim.x + (p.z - current.z) * aim.z > 0,
@@ -321,16 +332,35 @@ export class Match {
             ? facingCarrier
             : outfield
       ).sort((a, b) => distance(a, carrier) - distance(b, carrier))
-      const index = ranked.findIndex((p) => p.id === this.selected)
-      const nextIndex = index === 0 ? 1 % ranked.length : 0
-      this.selected = ranked[nextIndex]!.id
+      const rankedIds = ranked.map((p) => p.id)
+      const continueCycle =
+        this.defensiveSwitchCarrier === carrier.id &&
+        this.defensiveSwitchSelection === this.selected
+      if (continueCycle) {
+        const previousOrder = this.defensiveSwitchOrder
+        this.defensiveSwitchOrder = [
+          ...previousOrder.filter((id) => rankedIds.includes(id)),
+          ...rankedIds.filter((id) => !previousOrder.includes(id)),
+        ]
+      } else {
+        this.defensiveSwitchOrder = rankedIds
+      }
+      const index = this.defensiveSwitchOrder.indexOf(this.selected)
+      const currentIsBest = !continueCycle && index === 0
+      const nextIndex =
+        continueCycle || currentIsBest ? (index + 1) % this.defensiveSwitchOrder.length : 0
+      this.selected = this.defensiveSwitchOrder[nextIndex]!
+      this.defensiveSwitchCarrier = carrier.id
+      this.defensiveSwitchSelection = this.selected
     } else if (
       this.passTarget !== null &&
       this.players[this.passTarget]!.team === 0 &&
       this.passTarget !== this.selected
     ) {
+      this.clearDefensiveSwitchCycle()
       this.selected = this.passTarget
     } else {
+      this.clearDefensiveSwitchCycle()
       const carrier = this.owner !== null ? this.players[this.owner]! : null
       const ranked = this.players
         .filter((p) => p.team === 0 && p.role !== 'GK')
