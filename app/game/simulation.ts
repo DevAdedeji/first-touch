@@ -287,9 +287,8 @@ export class Match {
       return
     }
     const current = this.players[this.selected]!
-    const candidates = this.players.filter(
-      (p) => p.team === 0 && p.id !== this.selected && p.role !== 'GK',
-    )
+    const outfield = this.players.filter((p) => p.team === 0 && p.role !== 'GK')
+    const candidates = outfield.filter((p) => p.id !== this.selected)
     if (direction && Math.hypot(direction.x, direction.z) > 0.2) {
       const aim = unit(direction.x, direction.z)
       const inDirection = candidates.filter(
@@ -309,13 +308,21 @@ export class Match {
       this.selected = directionalCandidates[0]!.id
     } else if (this.owner !== null && this.players[this.owner]!.team === 1) {
       const carrier = this.players[this.owner]!
-      const ranked = this.players
-        .filter((p) => p.team === 0 && p.role !== 'GK')
-        .sort((a, b) => {
-          return distance(a, carrier) - distance(b, carrier)
-        })
+      const advancingTowardGoal = carrier.facingX < -0.2
+      const facingCarrier = outfield.filter((p) => {
+        const toCarrier = unit(carrier.x - p.x, carrier.z - p.z)
+        return p.facingX * toCarrier.x + p.facingZ * toCarrier.z >= 0.15
+      })
+      const goalSide = facingCarrier.filter((p) => p.x <= carrier.x + 1.5)
+      const ranked = (
+        advancingTowardGoal && goalSide.length
+          ? goalSide
+          : advancingTowardGoal && facingCarrier.length
+            ? facingCarrier
+            : outfield
+      ).sort((a, b) => distance(a, carrier) - distance(b, carrier))
       const index = ranked.findIndex((p) => p.id === this.selected)
-      const nextIndex = index <= 0 ? (index + 1) % ranked.length : 0
+      const nextIndex = index === 0 ? 1 % ranked.length : 0
       this.selected = ranked[nextIndex]!.id
     } else if (
       this.passTarget !== null &&
